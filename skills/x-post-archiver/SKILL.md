@@ -2,7 +2,7 @@
 name: x-post-archiver
 description: >
   Downloads and archives X (Twitter) posts, articles, and threads as structured Markdown with media.
-  Supports single and batch download with anti-detection measures.
+  Supports auth login, single and batch download with anti-detection measures.
   Use when the user wants to save, download, archive, or convert X/Twitter posts to Markdown.
   Triggers: "download tweet", "save this X post", "archive this tweet", "convert tweet to markdown",
   "batch download tweets", or when user provides x.com / twitter.com URLs and asks to save/download them.
@@ -12,7 +12,7 @@ allowed-tools: Bash(npx agent-browser:*), Bash(bash:*), Bash(node:*), Bash(curl:
 # X Post Archiver
 
 Archive X (Twitter) posts, articles, and threads as clean Markdown with all associated media.
-Supports single URL and batch mode with built-in anti-detection.
+Supports auth login, single URL and batch mode with built-in anti-detection.
 
 ## Why This Approach
 
@@ -27,11 +27,12 @@ Supports single URL and batch mode with built-in anti-detection.
 ### Proven Pipeline
 
 ```
-[oembed API]       → metadata (author, date, handle)
-[agent-browser]    → open URL → render JS → snapshot (full text)
+[oembed API]         → metadata (author, date, handle)
+[state load]         → restore logged-in session (if auth file exists)
+[agent-browser]      → open URL → render JS → snapshot (full text)
 [agent-browser eval] → extract image URLs from DOM
-[curl]             → download images
-[Claude Code]      → parse snapshot → assemble clean Markdown
+[curl]               → download images
+[Claude Code]        → parse snapshot → assemble clean Markdown
 ```
 
 ## Prerequisites
@@ -39,6 +40,61 @@ Supports single URL and batch mode with built-in anti-detection.
 - **Node.js** (v18+), **npx**, **curl**, **python3**
 - **agent-browser** — auto-installed via npx
 - **Playwright Chromium** — auto-installed if missing
+
+---
+
+## Auth: Login & Save Session (Recommended)
+
+Anonymous access to X is unreliable — X may show login walls that block content rendering.
+The `login` command solves this by saving a logged-in browser session for reuse.
+
+### Why Auth Matters
+
+| Mode | Reliability | Limitation |
+|------|-------------|-----------|
+| **Anonymous** | Unstable | X may return login wall instead of content; varies by IP/region |
+| **With Auth** | Stable | Full content always renders; can access protected tweets you follow |
+
+### First-Time Setup (one-time, ~2 minutes)
+
+```bash
+bash <SKILL_DIR>/scripts/download.sh login
+```
+
+This will:
+1. Open a **visible** browser window to X's login page
+2. Wait for you to manually log in (username, password, 2FA)
+3. After you confirm login, save session to `~/.claude/skills/x-post-archiver/x-auth.json`
+
+### How Auth Is Used
+
+The auth file is loaded **automatically** in this priority:
+
+1. `--auth <FILE>` flag (explicit path)
+2. Default location: `~/.claude/skills/x-post-archiver/x-auth.json` (auto-detected)
+3. No auth file → anonymous mode (with warning)
+
+When auth is loaded, the browser starts with full login state (cookies, localStorage, etc.)
+before navigating to any X URL. This means:
+- No login walls
+- Full article content always renders
+- Can access tweets from accounts you follow (including protected)
+- Significantly reduces block/rate-limit risk in batch mode
+
+### Auth on Another Machine
+
+To use auth on a different machine:
+1. Run `login` on that machine, OR
+2. Copy `x-auth.json` from the original machine to the same path
+
+### Auth Expiry
+
+X sessions typically last weeks to months. If downloads start failing again:
+```bash
+bash <SKILL_DIR>/scripts/download.sh login   # Re-login to refresh
+```
+
+---
 
 ## Workflow: Single URL
 
@@ -60,7 +116,7 @@ bash <SKILL_DIR>/scripts/download.sh preflight
 ### Phase 2: Download
 
 ```bash
-bash <SKILL_DIR>/scripts/download.sh download "<URL>" "<OUTPUT_DIR>" [--no-images] [--timeout N]
+bash <SKILL_DIR>/scripts/download.sh download "<URL>" "<OUTPUT_DIR>" [--auth FILE] [--no-images] [--timeout N]
 ```
 
 ### Phase 3: Assemble Markdown (Claude Code)
@@ -94,11 +150,6 @@ In addition to single-mode preferences, ask:
 
 If user provides URLs directly (pasted or in conversation), create the URL file:
 
-```bash
-# Create URL file at <BASE_DIR>/urls.txt
-# Format: one URL per line, # for comments
-```
-
 Example `urls.txt`:
 ```
 # OpenClaw related articles
@@ -121,18 +172,19 @@ bash <SKILL_DIR>/scripts/download.sh preflight
 bash <SKILL_DIR>/scripts/download.sh batch "<URL_FILE>" "<BASE_DIR>" [options]
 ```
 
-**Recommended option presets:**
+**Recommended presets (with auth for best results):**
 
 ```bash
 # Conservative (10+ URLs, safest)
 bash <SKILL_DIR>/scripts/download.sh batch urls.txt ./archive \
+  --auth ~/.claude/skills/x-post-archiver/x-auth.json \
   --delay-min 30 --delay-max 60 --max-retries 2 --cooldown 120 --resume
 
-# Moderate (5-10 URLs)
+# Moderate (5-10 URLs) — auth auto-detected if at default path
 bash <SKILL_DIR>/scripts/download.sh batch urls.txt ./archive \
   --delay-min 15 --delay-max 45 --max-retries 2 --cooldown 90 --resume
 
-# Aggressive (< 5 URLs, fastest but riskiest)
+# Aggressive (< 5 URLs, with auth = low risk)
 bash <SKILL_DIR>/scripts/download.sh batch urls.txt ./archive \
   --delay-min 8 --delay-max 20 --max-retries 1 --cooldown 60
 ```
@@ -160,10 +212,15 @@ Report batch summary to user:
 
 The script implements multiple layers of protection:
 
+### 0. Auth Session (most effective)
+- Logged-in sessions are treated as real users by X
+- Dramatically reduces login wall and rate-limit triggers
+- Auth state is loaded once per browser session, persists across navigations
+
 ### 1. Browser Session Reuse
 - Opens browser **once**, navigates between URLs
 - Avoids repeated browser launch/close (looks like real user browsing)
-- On block detection: closes and reopens browser (fresh session)
+- On block detection: closes and reopens browser (fresh session, re-loads auth)
 
 ### 2. Random Delays
 - Configurable min/max delay between requests
@@ -189,7 +246,7 @@ On block detection:
 ### 5. Consecutive Block Circuit Breaker
 If 2+ URLs in a row are blocked:
 - Triggers extended cooldown (`cooldown × 3`)
-- Closes and reopens browser (new session)
+- Closes and reopens browser (new session + re-loads auth)
 - Resets consecutive block counter
 
 ### 6. Resume Mode (`--resume`)
@@ -199,13 +256,13 @@ If 2+ URLs in a row are blocked:
 
 ### Risk Level Reference
 
-| Batch Size | Recommended Delay | Estimated Time | Risk |
-|------------|-------------------|----------------|------|
-| 1-3 URLs | 8-15s | 1-3 min | Very Low |
-| 5-10 URLs | 15-45s | 5-15 min | Low |
-| 10-30 URLs | 30-60s | 15-45 min | Low-Medium |
-| 30-100 URLs | 45-90s | 1-3 hours | Medium |
-| 100+ URLs | 60-120s + breaks | 3+ hours | Medium-High |
+| Batch Size | With Auth | Without Auth | Recommended Delay |
+|------------|-----------|--------------|-------------------|
+| 1-3 URLs | Almost zero | Very Low | 8-15s |
+| 5-10 URLs | Very Low | Low | 15-45s |
+| 10-30 URLs | Low | Low-Medium | 30-60s |
+| 30-100 URLs | Low-Medium | Medium | 45-90s |
+| 100+ URLs | Medium | High | 60-120s + breaks |
 
 For 100+ URLs, consider splitting across multiple sessions/days.
 
@@ -255,8 +312,8 @@ The snapshot is an accessibility tree. Article content is inside `article` eleme
 ### Batch Download
 ```
 <base-directory>/
-├── _batch_report.json          # Batch results summary
-├── urls.txt                    # Input URL file
+├── _batch_report.json
+├── urls.txt
 ├── <tweet_id_1>/
 │   ├── article.md
 │   └── media/
@@ -286,9 +343,10 @@ The snapshot is an accessibility tree. Article content is inside `article` eleme
 | `agent-browser: not found` | Not installed | Auto-installs via npx |
 | `Executable doesn't exist` | Playwright missing | Auto-installs chromium |
 | Browser timeout | Slow page load | Increase `--timeout` |
-| Empty snapshot | Login wall / protected | Retry with backoff; if persistent, try `--headed` |
+| Empty snapshot / login wall | Not logged in / rate limited | Run `login` to save auth session |
 | Image download 403 | CDN restriction | Uses Referer header; falls back to screenshot |
 | Batch interrupted | Network / crash | Re-run with `--resume` to continue |
+| Auth expired | Session too old | Re-run `login` to refresh |
 
 ## Script Reference
 
@@ -296,11 +354,15 @@ The snapshot is an accessibility tree. Article content is inside `article` eleme
 # Environment check
 bash download.sh preflight
 
-# Single download
-bash download.sh download <URL> <DIR> [--no-images] [--timeout N]
+# Login & save session (one-time setup, recommended)
+bash download.sh login [AUTH_FILE]
+
+# Single download (auto-loads auth if available)
+bash download.sh download <URL> <DIR> [--auth FILE] [--no-images] [--timeout N]
 
 # Batch download
 bash download.sh batch <URL_FILE> <DIR> \
+  [--auth FILE] \
   [--delay-min N] [--delay-max N] \
   [--max-retries N] [--cooldown N] \
   [--resume] [--no-images] [--timeout N]

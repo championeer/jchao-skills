@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # =============================================================================
-# X Post Archiver - Download Script (v2 - batch + anti-detection)
+# X Post Archiver - Download Script (v3 - auth + batch + anti-detection)
 #
 # Usage:
 #   bash download.sh preflight                            # Check environment
+#   bash download.sh login [AUTH_FILE]                    # Interactive login, save session
 #   bash download.sh download <URL> <OUTPUT_DIR> [opts]   # Single post
 #   bash download.sh batch <URL_FILE> <BASE_DIR> [opts]   # Batch download
 #
 # Shared Options:
+#   --auth FILE        Load saved auth state (from `login` command)
 #   --no-images        Skip image downloading
 #   --timeout N        Browser render wait in seconds (default: 8)
 #
@@ -27,6 +29,10 @@ DOWNLOAD_IMAGES=true
 BROWSER_TIMEOUT=8
 AGENT_BROWSER_CMD="npx agent-browser"
 
+# Auth
+AUTH_FILE=""
+DEFAULT_AUTH_FILE="${HOME}/.claude/skills/x-post-archiver/x-auth.json"
+
 # Batch / anti-detection globals
 DELAY_MIN=15
 DELAY_MAX=45
@@ -35,6 +41,7 @@ COOLDOWN=120
 RESUME_MODE=false
 CONSECUTIVE_BLOCKS=0
 BROWSER_OPEN=false
+AUTH_LOADED=false
 
 # ─── Colors (safe for non-TTY) ───────────────────────────────────────────────
 if [ -t 1 ]; then
@@ -229,13 +236,50 @@ detect_block() {
   return 0
 }
 
+# ─── Resolve Auth File ────────────────────────────────────────────────────────
+resolve_auth_file() {
+  # Priority: --auth flag > default location > none
+  if [ -n "$AUTH_FILE" ] && [ -f "$AUTH_FILE" ]; then
+    ok "Auth file: $AUTH_FILE"
+    return 0
+  elif [ -z "$AUTH_FILE" ] && [ -f "$DEFAULT_AUTH_FILE" ]; then
+    AUTH_FILE="$DEFAULT_AUTH_FILE"
+    ok "Auth file (auto-detected): $AUTH_FILE"
+    return 0
+  elif [ -n "$AUTH_FILE" ] && [ ! -f "$AUTH_FILE" ]; then
+    warn "Auth file not found: $AUTH_FILE (running without auth)"
+    AUTH_FILE=""
+    return 1
+  else
+    info "No auth file. Running as anonymous (may hit login walls)."
+    info "Run 'bash download.sh login' to create one."
+    return 1
+  fi
+}
+
+# ─── Load Auth State Into Browser ─────────────────────────────────────────────
+browser_load_auth() {
+  if [ -n "$AUTH_FILE" ] && [ -f "$AUTH_FILE" ] && [ "$AUTH_LOADED" = false ]; then
+    info "Loading auth state..."
+    if $AGENT_BROWSER_CMD state load "$AUTH_FILE" 2>/dev/null; then
+      ok "Auth state loaded (logged-in session)"
+      AUTH_LOADED=true
+    else
+      warn "Failed to load auth state. Continuing without auth."
+    fi
+  fi
+}
+
 # ─── Browser Management ──────────────────────────────────────────────────────
 browser_ensure_open() {
   if [ "$BROWSER_OPEN" = false ]; then
     info "Starting browser session..."
     $AGENT_BROWSER_CMD open "about:blank" &>/dev/null 2>&1
     BROWSER_OPEN=true
+    AUTH_LOADED=false
     sleep 1
+    # Load auth after browser is open
+    browser_load_auth
   fi
 }
 
@@ -249,11 +293,93 @@ browser_close() {
   if [ "$BROWSER_OPEN" = true ]; then
     $AGENT_BROWSER_CMD close &>/dev/null 2>&1 || true
     BROWSER_OPEN=false
+    AUTH_LOADED=false
   fi
 }
 
 # Cleanup on exit
 trap browser_close EXIT
+
+# ─── Interactive Login ────────────────────────────────────────────────────────
+do_login() {
+  local auth_output="${1:-$DEFAULT_AUTH_FILE}"
+
+  echo "==========================================="
+  echo " X Post Archiver - Login & Save Session"
+  echo "==========================================="
+  echo ""
+  info "This will open a VISIBLE browser window for you to log in to X."
+  info "After login, the session will be saved to: $auth_output"
+  echo ""
+  echo "Steps:"
+  echo "  1. A browser window will open to x.com/login"
+  echo "  2. Log in with your X account (username, password, 2FA if needed)"
+  echo "  3. Wait until you see your home timeline"
+  echo "  4. Come back here and press ENTER to save the session"
+  echo ""
+  read -rp "Press ENTER to open browser..."
+
+  # Ensure playwright is ready
+  ensure_playwright
+
+  # Open headed browser
+  info "Opening browser (headed mode)..."
+  $AGENT_BROWSER_CMD --headed open "https://x.com/i/flow/login" 2>&1 | tail -1
+
+  echo ""
+  echo "==========================================="
+  info "Browser is open. Please log in to X now."
+  info "After you see your home timeline, come back here."
+  echo "==========================================="
+  echo ""
+  read -rp "Press ENTER after you've logged in successfully..."
+
+  # Verify login by checking the page
+  info "Verifying login..."
+  local current_url
+  current_url=$($AGENT_BROWSER_CMD get url 2>/dev/null || echo "unknown")
+  info "Current URL: $current_url"
+
+  # Try to navigate to home to confirm logged in
+  $AGENT_BROWSER_CMD open "https://x.com/home" 2>/dev/null
+  sleep 3
+
+  local snapshot
+  snapshot=$($AGENT_BROWSER_CMD snapshot 2>/dev/null || echo "")
+  local has_timeline
+  has_timeline=$(echo "$snapshot" | grep -c 'timeline\|Home\|Post\|What is happening' 2>/dev/null || echo "0")
+
+  if [ "$has_timeline" -gt 0 ]; then
+    ok "Login verified! Home timeline detected."
+  else
+    warn "Could not verify login. Saving session anyway."
+  fi
+
+  # Save auth state
+  mkdir -p "$(dirname "$auth_output")"
+  info "Saving session state..."
+  if $AGENT_BROWSER_CMD state save "$auth_output" 2>/dev/null; then
+    ok "Session saved to: $auth_output"
+  else
+    error "Failed to save session state."
+    browser_close
+    return 1
+  fi
+
+  browser_close
+
+  echo ""
+  echo "==========================================="
+  ok "Login complete!"
+  echo ""
+  echo "Use it with:"
+  echo "  bash download.sh download <URL> <DIR> --auth $auth_output"
+  echo "  bash download.sh batch <FILE> <DIR> --auth $auth_output"
+  echo ""
+  echo "Or place it at the default location and it will be auto-detected:"
+  echo "  $DEFAULT_AUTH_FILE"
+  echo "==========================================="
+}
 
 # ─── Fetch Oembed Metadata ───────────────────────────────────────────────────
 fetch_oembed() {
@@ -522,11 +648,17 @@ do_batch() {
   info "Delay:       ${DELAY_MIN}-${DELAY_MAX}s between requests"
   info "Max retries: $MAX_RETRIES (cooldown: ${COOLDOWN}s)"
   info "Resume mode: $RESUME_MODE"
+  if [ -n "$AUTH_FILE" ]; then
+    info "Auth:        $AUTH_FILE"
+  else
+    warn "Auth:        none (anonymous mode)"
+  fi
   echo ""
 
   mkdir -p "$base_dir"
 
   # Ensure browser is ready
+  resolve_auth_file || true
   ensure_playwright
   browser_ensure_open
 
@@ -639,6 +771,7 @@ do_download() {
   local url="$1"
   local output_dir="$2"
 
+  resolve_auth_file || true
   ensure_playwright
   browser_ensure_open
 
@@ -665,6 +798,7 @@ do_download() {
 parse_options() {
   while [ $# -gt 0 ]; do
     case "$1" in
+      --auth)         AUTH_FILE="${2:-}"; shift ;;
       --no-images)    DOWNLOAD_IMAGES=false ;;
       --timeout)      BROWSER_TIMEOUT="${2:-8}"; shift ;;
       --delay-min)    DELAY_MIN="${2:-15}"; shift ;;
@@ -686,6 +820,11 @@ main() {
   case "$command" in
     preflight|check)
       preflight
+      ;;
+
+    login)
+      local auth_file="${1:-$DEFAULT_AUTH_FILE}"
+      do_login "$auth_file"
       ;;
 
     download)
@@ -718,12 +857,17 @@ main() {
       ;;
 
     help|*)
-      echo "X Post Archiver - Download Script v2"
+      echo "X Post Archiver - Download Script v3"
       echo ""
       echo "Usage:"
       echo "  bash download.sh preflight                            # Check environment"
+      echo "  bash download.sh login [AUTH_FILE]                    # Login & save session"
       echo "  bash download.sh download <URL> <DIR> [options]       # Single download"
       echo "  bash download.sh batch <URL_FILE> <DIR> [options]     # Batch download"
+      echo ""
+      echo "Auth (recommended for reliable access):"
+      echo "  --auth FILE        Use saved auth state from 'login' command"
+      echo "                     Auto-detects: $DEFAULT_AUTH_FILE"
       echo ""
       echo "Shared Options:"
       echo "  --no-images        Skip image downloading"
@@ -735,6 +879,10 @@ main() {
       echo "  --max-retries N    Retries per URL on block (default: 2)"
       echo "  --cooldown N       Cooldown after block in seconds (default: 120)"
       echo "  --resume           Skip already-downloaded URLs"
+      echo ""
+      echo "Quick Start:"
+      echo "  bash download.sh login                    # One-time: login & save"
+      echo "  bash download.sh download <URL> <DIR>     # Auto-loads saved auth"
       echo ""
       echo "URL File Format:"
       echo "  # Comments start with #"
