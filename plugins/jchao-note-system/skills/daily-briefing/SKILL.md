@@ -1,3 +1,8 @@
+---
+name: daily-briefing
+description: 生成每日简报，汇总当天的任务和事件。当用户说"今日简报"、"daily briefing"、"今天有什么安排"、"今天的任务"时触发。
+---
+
 # Daily Briefing Skill
 
 Generate a daily summary of tasks and events from the user's note repository.

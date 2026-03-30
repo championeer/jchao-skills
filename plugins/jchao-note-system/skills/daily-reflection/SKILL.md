@@ -1,3 +1,8 @@
+---
+name: daily-reflection
+description: 从当日日志中提取并总结一日得失。当用户说"今日复盘"、"daily reflection"、"回顾今天"、"今天做了什么"时触发。
+---
+
 # Daily Reflection Skill
 
 从当日日志中提取并总结一日得失。
