@@ -1,0 +1,30 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "jchao-skills",
+  "owner": {
+    "name": "Jason Chao",
+    "url": "https://github.com/JasonChaoworker"
+  },
+  "metadata": {
+    "description": "JChao 个人效率工具集：笔记系统 + 知识管理",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "jchao-note-system",
+      "description": "个人笔记系统：日记录入、处理、同步、简报、复盘",
+      "author": {
+        "name": "Jason Chao"
+      },
+      "source": "./plugins/jchao-note-system"
+    },
+    {
+      "name": "jchao-kms",
+      "description": "知识管理系统：文章归档、知识库查询、健康检查",
+      "author": {
+        "name": "Jason Chao"
+      },
+      "source": "./plugins/jchao_kms"
+    }
+  ]
+}
