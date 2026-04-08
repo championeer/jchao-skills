@@ -25,6 +25,14 @@
         "name": "Jason Chao"
       },
       "source": "./plugins/jchao_kms"
+    },
+    {
+      "name": "qykb",
+      "description": "晴芽知识库管理：摄入、查询、审核、导出青少年心理健康知识",
+      "author": {
+        "name": "Jason Chao"
+      },
+      "source": "./plugins/qykb"
     }
   ]
 }
