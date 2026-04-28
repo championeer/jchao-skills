@@ -33,6 +33,14 @@
         "name": "Jason Chao"
       },
       "source": "./plugins/qykb"
+    },
+    {
+      "name": "qy-xhs",
+      "description": "晴芽小红书账号「晴芽爸爸成长笔记」内容工作流：创作内循环 + 复盘外循环",
+      "author": {
+        "name": "Jason Chao"
+      },
+      "source": "./plugins/qy-xhs"
     }
   ]
 }
