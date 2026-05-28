@@ -1,0 +1,5 @@
+{
+  "name": "qy-operator",
+  "description": "晴芽运营工具：对话数据多维度导出（MVP dump command）+ 后续 stats/profile/content-analyze",
+  "version": "1.0.0"
+}
