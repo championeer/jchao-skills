@@ -1,0 +1,45 @@
+interface:
+  display_name: "skillman"
+  short_description: "Lifecycle manager for the personal skill library (~/.skill-library)"
+  default_prompt: "Use $skillman to find / install / audit / archive / ingest skills in ~/.skill-library — wraps skill-link.sh, never touches the MedClaw library."
+compatibility:
+  canonical_format: "agent-skills"
+  adapter_targets:
+    - "claude"
+    - "generic"
+  activation:
+    mode: "manual"
+    paths: []
+  execution:
+    context: "inline"
+    shell: "bash"
+    entrypoint: "scripts/skillman.sh"
+  trust:
+    source_tier: "local"
+    remote_inline_execution: "forbid"
+    remote_metadata_policy: "allow-metadata-only"
+commands:
+  - name: "status"
+    summary: "Library overview: repo / global / dangling / archive counts"
+  - name: "find"
+    args: "<keyword>"
+    summary: "Search names + SKILL.md descriptions; emits near-neighbor hint"
+  - name: "link"
+    args: "<repo>/<skill> [project]"
+    summary: "Install into a project (wraps skill-link.sh, self-verifies the symlink)"
+  - name: "audit"
+    args: "[project]"
+    summary: "Per-project install list with link checks, or library-wide dangling scan"
+  - name: "archive"
+    args: "<name> [--force]"
+    summary: "Archive (move, never delete) a repo or unlink a global skill"
+  - name: "ingest"
+    args: "<git-url> [name]"
+    summary: "git clone into repos/, ready to link; logs provenance to _inventory/ingested.log"
+boundary:
+  manages: "~/.skill-library (repos/ + skills/ + per-project .claude/skills)"
+  delegates_creation_to: "yao-meta-skill"
+  excludes:
+    - "/Volumes/Extreme-Pro/MedClaw_SkillLibrary (owned by skill-library-manager)"
+    - "no deletion — archive-only"
+    - "no fabricated ~/.agents/.skill-lock.json entries"
