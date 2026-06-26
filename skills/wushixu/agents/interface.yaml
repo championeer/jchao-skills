@@ -1,0 +1,30 @@
+interface:
+  display_name: "物势序分析 (Wu-Shi-Xu Lens)"
+  short_description: "用物势序论透镜分析现实处境、给判断与行动建议"
+  default_prompt: "用 $wushixu 帮我分析这个处境：<贴入你的局面/问题>"
+boundary:
+  owns_job: "用物势序透镜对一个现实处境做结构化分析（三道目光→判断→行动）"
+  produces: "一份物势序分析；研判场景额外含可证伪预测+证伪条件+事实锚"
+  out_of_scope:
+    - "纯事实查询（用搜索/deep-research）"
+    - "纯价值/伦理判断（§19 不判善恶）"
+    - "窄技术最优化、需专业领域知识的执行"
+    - "理论正文本身的建构与编辑（属 13-物势序论 项目，非本 skill）"
+compatibility:
+  canonical_format: "agent-skills"
+  adapter_targets:
+    - "claude"
+    - "generic"
+  activation:
+    mode: "manual"
+    paths: []
+  execution:
+    context: "inline"
+    shell: "bash"
+  trust:
+    source_tier: "local"
+    remote_inline_execution: "forbid"
+    remote_metadata_policy: "allow-metadata-only"
+  degradation:
+    claude: "neutral-source-plus-adapter"
+    generic: "neutral-source"
