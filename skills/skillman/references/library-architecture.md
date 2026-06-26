@@ -10,7 +10,7 @@
 │   ├── baoyu-skills/  baoyu-design/  frontend-slides/  guizang-ppt-skill/
 │   ├── mattpocock-skills/  ponytail/  yao-meta-skill/
 ├── skills/                # 全局曝光层：dir 或 symlink，含 SKILL.md 即被各处可用
-├── bin/skill-link.sh      # 接入工具：repo 或自建(self/)的 skill 软链进某项目 .claude/skills，或 --global 到 ~/.claude/skills
+├── bin/skill-link.sh      # 接入工具(repo/self → 项目或 --global)；本体受控于 skillman/scripts/，此处为软链
 ├── _inventory/            # 盘点产物：inventory.py（分类脚本）+ *-targets.txt + ingested.log
 ├── _archive-<日期>/       # 归档区（下架不删，按日期分目录）
 ├── library.json           # 极简元数据（version/createdAt）
