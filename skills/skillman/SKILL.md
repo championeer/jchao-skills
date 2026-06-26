@@ -21,7 +21,7 @@ metadata:
 | 命令 | 作用 | 例 |
 |---|---|---|
 | `status` | 全库概览（仓/全局/断链/归档数） | `skillman.sh status` |
-| `find <kw>` | 搜名称+描述，给 near-neighbor 提示 | `skillman.sh find pdf` |
+| `find <kw>` | 搜 repos+全局+自建库(`self/`) 的名称+描述，给 near-neighbor 提示 | `skillman.sh find pdf` |
 | `link <repo>/<skill> [项目]` | 第三方仓 skill 接入项目（封装 skill-link.sh，自验） | `skillman.sh link mattpocock-skills/tdd ~/0-WORKSPACE/31-文件管理白板` |
 | `link self/<skill> [项目\|--global]` | **自建源**（`self/`=JChao_Skills 库）接入项目，或 `--global` 全局曝光到 `~/.claude/skills` | `skillman.sh link self/wushixu --global` |
 | `audit [项目]` | 给项目→列接入并逐项验链；不给→全库扫断链 | `skillman.sh audit ~/0-WORKSPACE/31-文件管理白板` |

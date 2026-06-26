@@ -6,7 +6,7 @@
 #
 # 用法: skillman.sh <命令> [参数]
 #   status                      全库概览（仓/全局/断链/归档数）
-#   find <关键词>               搜名称+SKILL.md 描述，给 near-neighbor 提示
+#   find <关键词>               搜 repos+全局+自建库(self/) 的名称+SKILL.md 描述，给 near-neighbor 提示
 #   link <repo>/<skill>|self/<skill> [项目|--global]  接入项目或全局曝光（封装 skill-link.sh，自验）
 #   audit [项目]                给项目→列接入清单逐项验链；不给→全库扫断链
 #   archive <名称> [--force]    归档 repo/全局 skill（移到 _archive，不删）；有依赖需 --force
@@ -17,6 +17,7 @@ LIB="$HOME/.skill-library"
 REPOS="$LIB/repos"
 GLOBAL="$LIB/skills"
 CGLOBAL="$HOME/.claude/skills"   # Claude Code 全局发现点（--global 落点、自建直挂全局曝光）
+SELF="${JCHAO_SKILLS_DIR:-/Users/qianli/0-WORKSPACE/60-Tools/JChao_Skills/skills}"   # 自建库（self/ 源；与 skill-link.sh 同口径，可 JCHAO_SKILLS_DIR 覆盖）
 LINK="$LIB/bin/skill-link.sh"
 SCAN_DIRS=("$GLOBAL" "$HOME/.agents/skills" "$HOME/.claude/skills")
 
@@ -53,18 +54,28 @@ cmd_status(){
 
 cmd_find(){
   local kw="${1:?用法: skillman.sh find <关键词>}"
-  echo "== 搜索 '$kw'（repos + 全局）=="
+  echo "== 搜索 '$kw'（repos + 全局 + 自建 self/）=="
   local hits=0 f dir desc name rel
   while IFS= read -r f; do
     dir=$(dirname "$f"); desc=$(desc_of "$f"); name=$(name_of "$f")
     if printf '%s %s %s' "$f" "${name:-}" "${desc:-}" | grep -iqF -- "$kw"; then
-      rel=${dir#"$LIB"/}; hits=$((hits+1))
+      case "$dir" in
+        "$SELF"/*) rel="self/$(basename "$dir")" ;;   # 自建库 → 直接给可用的 self/ spec
+        *)         rel=${dir#"$LIB"/} ;;              # repos/… 或 skills/…（全局）
+      esac
+      hits=$((hits+1))
       printf "• %s\n    %s\n" "$rel" "${desc:0:140}"
     fi
-  done < <(find -L "$REPOS" "$GLOBAL" -name SKILL.md -not -path '*/node_modules/*' 2>/dev/null)
+  done < <(
+    find -L "$REPOS" "$GLOBAL" -name SKILL.md -not -path '*/node_modules/*' 2>/dev/null
+    # 自建库只取顶层 <skill>/SKILL.md（-maxdepth 2），避免 examples/tests 内嵌套 SKILL.md 误报成 self/<内层名>
+    if [ -d "$SELF" ]; then
+      find -L "$SELF" -maxdepth 2 -name SKILL.md 2>/dev/null
+    fi
+  )
   echo ""
   if [ "$hits" -gt 0 ]; then
-    echo "→ 命中 $hits 个。接入: skillman.sh link <仓名>/<skill名> [项目]"
+    echo "→ 命中 $hits 个。接入: skillman.sh link <仓名>/<skill> | self/<skill>  [项目|--global]"
     echo "→ near-neighbor 纪律：造新 skill 前先确认以上近邻是否已够用。"
   else
     echo "→ 无命中。确属空白且会重复使用，才考虑用 yao-meta-skill 新建。"
