@@ -11,6 +11,8 @@
 #   audit [项目]                给项目→列接入清单逐项验链；不给→全库扫断链
 #   archive <名称> [--force]    归档 repo/全局 skill（移到 _archive，不删）；有依赖需 --force
 #   ingest <git-url> [名称]     git clone 进 repos/，完成后提示可 link
+#   update                      定期更新全部 repos/（--ff-only；dirty 跳过；audit 断链；
+#                               日志 _inventory/update-log.md；异常写 .update-attention）
 set -euo pipefail
 
 LIB="$HOME/.skill-library"
@@ -178,6 +180,116 @@ cmd_archive(){
   [ "$deps" -gt 0 ] && echo "  ⚠ 上述 $deps 个软链现已断链，请 audit 后清理。"
 }
 
+cmd_update(){
+  # 定期更新 repos/ 下全部第三方仓（launchd 每周触发，也可手动跑）。
+  # 纪律：只 --ff-only（拒绝自动 merge）；dirty 仓跳过不覆盖；结果倒序落盘可回溯；
+  #       任何异常（跳过/失败/断链）写 flag 文件，由 SessionStart 软提醒接力。
+  local logf="$LIB/_inventory/update-log.md"
+  local flag="$LIB/.update-attention"
+  mkdir -p "$(dirname "$logf")"
+  local updated=0 skipped=0 failed=0 dangling=0
+  local report="" r name old new out changed
+  echo "== skill 库定期更新 $(date '+%Y-%m-%d %H:%M') =="
+  for r in "$REPOS"/*/; do
+    [ -d "$r/.git" ] || continue
+    name=$(basename "$r")
+    if [ -n "$(git -C "$r" status --porcelain 2>/dev/null)" ]; then
+      report="${report}- ⚠ ${name}: 本地有改动，跳过 pull（处理后可手动重跑）
+"
+      skipped=$((skipped+1)); continue
+    fi
+    old=$(git -C "$r" rev-parse --short HEAD 2>/dev/null) || { failed=$((failed+1)); continue; }
+    # GitHub SSH 偶发抖动是常态，失败后隔 2s 重试一次再定性
+    out=$(git -C "$r" pull --ff-only 2>&1) \
+      || { sleep 2; out=$(git -C "$r" pull --ff-only 2>&1); } \
+      || {
+        report="${report}- ✗ ${name}: pull 失败 — $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-200 ; true)
+"
+        failed=$((failed+1)); continue
+      }
+    new=$(git -C "$r" rev-parse --short HEAD)
+    if [ "$old" != "$new" ]; then
+      # 变更涉及的顶级目录（近似 skill 粒度），供快速判断影响面
+      changed=$(git -C "$r" diff --name-only "$old" "$new" 2>/dev/null \
+        | cut -d/ -f1 | sort -u | head -8 | tr '\n' ' ')
+      report="${report}- ✓ ${name}: ${old}..${new}（变更: ${changed:-?}）
+"
+      updated=$((updated+1))
+    fi
+  done
+  # —— 第二段：Claude Code plugins（superpowers 等走 marketplace 机制，repos/ 覆盖不到）——
+  # launchd 环境 PATH 干净，claude CLI 须显式探测；找不到记异常不静默
+  local CLAUDE_BIN="" c
+  for c in "$HOME/.local/bin/claude" /opt/homebrew/bin/claude /usr/local/bin/claude; do
+    [ -x "$c" ] && { CLAUDE_BIN="$c"; break; }
+  done
+  local p_updated=0 p_failed=0 p_total=0 pid pout
+  if [ -n "$CLAUDE_BIN" ]; then
+    echo "-- plugins 更新中（marketplace 刷新 + 逐个检查，约数分钟）--"
+    "$CLAUDE_BIN" plugin marketplace update >/dev/null 2>&1 || {
+      report="${report}- ⚠ plugin marketplace 刷新失败（继续用旧索引检查）
+"
+    }
+    while IFS= read -r pid; do
+      p_total=$((p_total+1))
+      if pout=$("$CLAUDE_BIN" plugin update "$pid" 2>&1); then
+        if ! printf '%s' "$pout" | grep -q 'already at the latest'; then
+          report="${report}- ✓ plugin ${pid}: $(printf '%s' "$pout" | tail -1 | cut -c1-120 ; true)
+"
+          p_updated=$((p_updated+1))
+        fi
+      else
+        report="${report}- ✗ plugin ${pid}: 更新失败 — $(printf '%s' "$pout" | tr '\n' ' ' | cut -c1-160 ; true)
+"
+        p_failed=$((p_failed+1))
+      fi
+    done < <("$CLAUDE_BIN" plugin list --json 2>/dev/null \
+      | /usr/bin/python3 -c 'import json,sys; [print(p["id"]) for p in json.load(sys.stdin) if p.get("enabled")]' 2>/dev/null)
+    if [ "$p_total" -eq 0 ]; then
+      report="${report}- ⚠ plugin 清单读取失败（claude plugin list --json 无输出）
+"
+      p_failed=$((p_failed+1))
+    fi
+    [ "$p_updated" -gt 0 ] && report="${report}- ℹ plugin 有更新，需重启 Claude Code 会话生效
+"
+  else
+    report="${report}- ⚠ 未找到 claude CLI，跳过 plugins 更新
+"
+    p_failed=$((p_failed+1))
+  fi
+
+  # pull 后全库断链审计（上游改名/删目录的兜底；audit 有断链时返回非零，勿被 set -e 杀掉）
+  local audit_out=""
+  audit_out=$(cmd_audit 2>&1) || true
+  # 注意：合计行是"—— 断链合计 N ——"，$NF 抓到的是全角破折号，须剥掉非数字
+  dangling=$(printf '%s\n' "$audit_out" | awk '/断链合计/{gsub(/[^0-9]/,""); print; exit}')
+  dangling="${dangling:-0}"
+  if [ "$dangling" != "0" ]; then
+    report="${report}$(printf '%s\n' "$audit_out" | grep 'DANGLING' | sed 's/^/- ✗ 断链: /' ; true)
+"
+  fi
+
+  local summary="repos 更新 ${updated}/跳过 ${skipped}/失败 ${failed} · plugins 更新 ${p_updated}/失败 ${p_failed} · 断链 ${dangling}"
+  [ -n "$report" ] || report="- （全部已是最新，无变化）
+"
+  # 日志倒序追加（新条目在顶部）
+  local tmp="$logf.tmp.$$"
+  {
+    printf '## %s — %s\n%s\n' "$(date '+%Y-%m-%d %H:%M')" "$summary" "$report"
+    if [ -f "$logf" ]; then cat "$logf"; fi   # 勿写成 [ ] && cat：首跑无旧日志时尾命令返 1 会被 set -e 杀
+  } > "$tmp" && mv "$tmp" "$logf"
+
+  printf '%s\n%s' "$summary" "$report"
+  echo "日志: ${logf}"
+  # 异常 → flag（SessionStart 软提醒读它）；正常 → 清 flag
+  if [ "$skipped" != "0" ] || [ "$failed" != "0" ] || [ "$dangling" != "0" ] || [ "$p_failed" != "0" ]; then
+    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M')" "$summary" > "$flag"
+    echo "⚠ 存在异常，已写提醒标记: ${flag}"
+  else
+    /bin/rm -f "$flag"
+  fi
+}
+
 cmd_ingest(){
   local url="${1:?用法: skillman.sh ingest <git-url> [名称]}"
   local name="${2:-}"
@@ -206,6 +318,7 @@ case "$sub" in
   audit)   cmd_audit "$@";;
   archive) cmd_archive "$@";;
   ingest)  cmd_ingest "$@";;
-  ""|-h|--help|help) sed -n '2,16p' "$0";;
-  *) die "未知命令: ${sub}（status|find|link|audit|archive|ingest）";;
+  update)  cmd_update "$@";;
+  ""|-h|--help|help) sed -n '2,18p' "$0";;
+  *) die "未知命令: ${sub}（status|find|link|audit|archive|ingest|update）";;
 esac

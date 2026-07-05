@@ -27,6 +27,7 @@ metadata:
 | `audit [项目]` | 给项目→列接入并逐项验链；不给→全库扫断链 | `skillman.sh audit ~/0-WORKSPACE/31-文件管理白板` |
 | `archive <名称> [--force]` | 归档 repo/全局 skill，或解除 `~/.claude/skills` 软链的全局曝光（移到 `_archive-<日期>`/删指针，本体不删） | `skillman.sh archive wushixu` |
 | `ingest <git-url> [名称]` | `git clone` 进 repos/，完成后提示可 link | `skillman.sh ingest https://github.com/x/y.git` |
+| `update` | 定期更新第三方 skill：repos/ 全仓（`--ff-only`；dirty 跳过）+ Claude Code plugins（marketplace 刷新 + 逐个 `claude plugin update`）；pull 后 audit 断链；日志倒序落 `_inventory/update-log.md`；异常写 `.update-attention` flag | `skillman.sh update` |
 
 `link` 两轴正交：**源**（`<repo>/<skill>` 第三方仓 ｜ `self/<skill>` 自建库）×**目标**（默认项目 `.claude/skills` ｜ `--global` 到 `~/.claude/skills`），四种组合皆可。自建源根可用 `JCHAO_SKILLS_DIR` 覆盖（默认 `JChao_Skills/skills`）。`--global` 链回头用 `archive <skill>` 即可解除曝光（删指针、本体不动）。
 
@@ -46,6 +47,8 @@ bash ~/0-WORKSPACE/60-Tools/JChao_Skills/skills/skillman/scripts/skillman.sh sta
 - **不自动删除**任何 skill：全局软链只"解除曝光"（删指针，本体不动），真实仓/目录只"移动到归档"。
 - `archive` 的依赖扫描只覆盖 `~/.skill-library/skills`、`~/.agents/skills`、`~/.claude/skills` 三处；**项目级 `.claude/skills` 的依赖扫不到**，归档前请先对相关项目 `audit`。
 - 新建 skill 不在本 skill 职责内 → 用 `yao-meta-skill`。
+- **自动定期更新**：`update` 已由 launchd `com.jchao.skill-library-update` 每周一 09:00 自动触发（睡眠错过唤醒后补跑，stdout 落 `_inventory/launchd-update.log`）；异常（dirty 跳过 / pull 失败 / plugin 失败 / 断链）写 `~/.skill-library/.update-attention`，由 Claude-Harness 的 SessionStart hook 软提醒，处理后重跑 `update` 或删 flag 即消音。
+- **update 覆盖面**：① `repos/` 第三方 git 仓；② Claude Code plugins（superpowers 等，走 `claude plugin update`，plugin 有更新须重启会话生效——这是 update 唯一跨出 ~/.skill-library 的动作）。**不覆盖**：自建库（self/，本体在本地无需更新）、gstack 家族（走 `/gstack-upgrade`）、`~/.agents/skills` 散装目录（无上游元数据，无法自动更新）。
 
 ## 参考
 
