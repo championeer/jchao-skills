@@ -200,20 +200,35 @@ cmd_update(){
     fi
     old=$(git -C "$r" rev-parse --short HEAD 2>/dev/null) || { failed=$((failed+1)); continue; }
     # GitHub SSH 偶发抖动是常态，失败后隔 2s 重试一次再定性
+    # mode: 0=失败 1=ff 正常 2=分叉 rebase（本地对第三方 skill 有定制 commit 时的常态）
+    local mode=1
     out=$(git -C "$r" pull --ff-only 2>&1) \
-      || { sleep 2; out=$(git -C "$r" pull --ff-only 2>&1); } \
-      || {
-        report="${report}- ✗ ${name}: pull 失败 — $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-200 ; true)
+      || { sleep 2; out=$(git -C "$r" pull --ff-only 2>&1) || mode=0; }
+    if [ "$mode" -eq 0 ] && printf '%s' "$out" | grep -qi 'diverg'; then
+      # 本地领先 commit 与上游分叉 → rebase 重放本地定制；冲突则还原上报，绝不留半截状态
+      if out=$(git -C "$r" pull --rebase 2>&1); then
+        mode=2
+      else
+        git -C "$r" rebase --abort >/dev/null 2>&1 || true
+      fi
+    fi
+    if [ "$mode" -eq 0 ]; then
+      report="${report}- ✗ ${name}: pull 失败 — $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-200 ; true)
 "
-        failed=$((failed+1)); continue
-      }
+      failed=$((failed+1)); continue
+    fi
     new=$(git -C "$r" rev-parse --short HEAD)
     if [ "$old" != "$new" ]; then
       # 变更涉及的顶级目录（近似 skill 粒度），供快速判断影响面
       changed=$(git -C "$r" diff --name-only "$old" "$new" 2>/dev/null \
         | cut -d/ -f1 | sort -u | head -8 | tr '\n' ' ')
-      report="${report}- ✓ ${name}: ${old}..${new}（变更: ${changed:-?}）
+      if [ "$mode" -eq 2 ]; then
+        report="${report}- ✓ ${name}: ${old}..${new}（rebase 重放本地定制；变更: ${changed:-?}）
 "
+      else
+        report="${report}- ✓ ${name}: ${old}..${new}（变更: ${changed:-?}）
+"
+      fi
       updated=$((updated+1))
     fi
   done
