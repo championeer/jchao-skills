@@ -33,10 +33,10 @@ description: |
 ## 项目路径约定
 
 ```
-素材目录: 产品/CBT-Knowledge/临床课程/原始素材/儿童医院课程/{课次}/
-转录输出: 产品/CBT-Knowledge/临床课程/转录稿/第{课次}课-转录稿.md
-PPT输出:  产品/CBT-Knowledge/临床课程/结构化笔记/第{课次}课-PPT提取.md
-合并输出: 产品/CBT-Knowledge/临床课程/结构化笔记/第{课次}课-完整笔记.md
+素材目录: 产品/QingYa-Knowledge/临床课程/原始素材/儿童医院课程/{课次}/
+转录输出: 产品/QingYa-Knowledge/临床课程/转录稿/第{课次}课-转录稿.md
+PPT输出:  产品/QingYa-Knowledge/临床课程/结构化笔记/第{课次}课-PPT提取.md
+合并输出: 产品/QingYa-Knowledge/临床课程/结构化笔记/第{课次}课-完整笔记.md
 ```
 
 ## Interaction Flow
