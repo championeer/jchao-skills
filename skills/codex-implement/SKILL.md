@@ -1,6 +1,6 @@
 ---
 name: codex-implement
-description: codex 单路派发器——把已写好的 brief 交 codex GPT-5.6（high）经 codex:rescue 实现，是 /implement-ticket 执行链的兜底分支（builder 两轮同错停手 / 范围阻塞经裁决属 builder 误判 / Claude 配额触顶 / 执行者不可恢复时回落）；用户点名"派 codex"也可直接用。不做切面判定与 brief 写作（那在 /implement-ticket）。触发词：派 codex、codex 实现、续修 codex、回落 codex。
+description: codex 单路派发器——把已写好的 brief 交 codex GPT-5.6（high）经 codex:rescue 实现，是 /implement-ticket 执行链的兜底分支（范围异议经裁决属 builder 误判 / Claude 配额触顶 / builder 有效停手 / 执行者不可恢复四类，回落前已做半成品审计与范围裁决）；用户点名"派 codex"也可直接用。不做切面判定与 brief 写作（那在 /implement-ticket）。触发词：派 codex、codex 实现、续修 codex、回落 codex。
 ---
 
 # codex-implement — codex 单路派发
@@ -9,7 +9,7 @@ description: codex 单路派发器——把已写好的 brief 交 codex GPT-5.6�
 
 ## 1. 派 codex
 
-派 `codex:rescue` 子代理（fork 上下文）接 brief：prompt = brief 全文 ＋ 执行纪律段显式附上（原文取 `/Users/qianli/0-WORKSPACE/60-Tools/Claude-Harness/bin/grok-implement.sh` 内 `[Harness 执行纪律]` 段——Deviations 落盘/禁改测试/四段回传格式）。作为回落分支派出时，把 builder 的诊断（已排除什么 / 最可能根因）与半成品状态一并附上。子代理在后台跑，等待期间只做与该分支无关的独立工作。
+派 `codex:rescue` 子代理（fork 上下文）接 brief：prompt = brief 全文 ＋ 执行纪律段显式附上（原文取 `/Users/qianli/0-WORKSPACE/60-Tools/Claude-Harness/bin/grok-implement.sh` 内 `[Harness 执行纪律]` 段——Deviations 落盘/禁改测试/四段回传格式）。作为回落分支派出时，把 /implement-ticket §4 前置产出的半成品审计结论、范围裁决、builder 诊断一并附上。子代理在后台跑，等待期间只做与该分支无关的独立工作。
 
 - 先决：codex 可用性看 `codex:setup` 的 `ready`（true=已装+已登录）。
 - 续修轮：用 SendMessage 找回**同一个** rescue 子代理续对话（保留 codex 侧上下文），不要新开一路重做。
