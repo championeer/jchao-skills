@@ -24,20 +24,21 @@ description: 执行链派发器——自包含 ticket（spec＋验收标准完�
 派 `builder` 子代理接 brief：prompt = brief 全文 ＋ 执行纪律段显式附上（原文取 `/Users/qianli/0-WORKSPACE/60-Tools/Claude-Harness/bin/grok-implement.sh` 内 `[Harness 执行纪律]` 段——Deviations 落盘/禁改测试/四段回传格式）。子代理在后台跑；等待期间只做与该分支无关的独立工作（同一工作树上的编辑、stash、verify、commit 等它回来）。
 
 - 续修轮：用 SendMessage 找回**同一个** builder 子代理续对话（保留其上下文），不要新开一路重做。
-- **升格档（仅用户下令）**：用户说"升格"时，编排者 `/effort xhigh s`（或 `max`），实现改派 `builder-high`（Fable high），其余步骤不变。编排者可以建议升格——默认档一票内已回落 codex 一次仍不过，或设计期已判定为返工半径大的架构决策——但不自动切。
+- **升格档（用户授权的原子切换）**：用户说"升格"后编排者一次做完三步：主会话若在顾问模式（Sonnet 主循环）先 `/model fable`；`/effort xhigh s`（或 `max`）；实现改派 `builder-high`（Fable high），其余步骤不变。编排者只能建议升格、不能决定——建议条件：默认档一票内已回落 codex 一次仍不过，或设计期已判定为返工半径大的架构决策。
 
 ## 3. 收结果
 
-- 成功输出应含四段回传（改动清单 / 验证 / Deviations / 遗留）。四段缺失或答非所问 → 视同失败，按 §4 判是否回落。
-- builder 报"范围外阻塞 / 冻结项站不住"：先判问题在不在 brief。在 brief → 修 brief 重派 builder（不换人）；不在 brief → 进 §4。
+- 成功输出应含四段回传（改动清单 / 验证 / Deviations / 遗留）。四段缺失或答非所问 → SendMessage 补要一次；仍不合格 → 按 §4 ④ 回落。
+- builder 报"范围外阻塞 / 冻结项站不住"：先裁决 brief。真需要扩范围或改冻结项 → 修 brief 后重派 builder（任何执行者都不许自行扩范围，换执行者不等于授权扩范围）；brief 无误、阻塞是 builder 误判 → 按 §4 ② 回落。
 - 子代理超时/半途死亡：先 `git status` 审计树上半成品定去留，**有半成品不盲目重派**——重做会与半成品打架；优先 SendMessage 续跑收尾。
 
-## 4. 回落 codex（只在三种条件下）
+## 4. 回落 codex（只在四种条件下）
 
-写死三种触发，其余情况不回落：
+写死四种触发，其余情况不回落：
 1. builder 自报停手——同一失败连续两轮修不动，随附诊断（其定义内置的停手判据）。
-2. builder 报范围外阻塞，且编排者判定问题不在 brief。
+2. 范围阻塞经裁决属 builder 误判（brief 无误），带裁决说明回落。
 3. Claude 配额触顶或限流。
+4. 执行者不可恢复——SendMessage 续跑失败，或四段回传补要一次后仍不合格；先 `git status` 审计半成品定去留，再带半成品状态回落。
 
 回落前置检查：该票设计期若走过 codex-review-protocol §7 且 codex 是其中一路，先派 `Agent(model:'opus')` 拿完整问题陈述与 ADR 独立复核 brief 的「结构决策先行」段（不给 codex 原话），有异议先裁决；或建议用户升格 `builder-high` 不回落。
 
