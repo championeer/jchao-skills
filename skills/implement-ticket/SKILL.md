@@ -1,6 +1,6 @@
 ---
 name: implement-ticket
-description: 执行链派发器——自包含 ticket（spec＋验收标准完整＋verify.sh 兜底）的实现派 Fable 命名子代理 builder（effort medium），失败按写死的三种条件回落 codex（经 /codex-implement），编排者亲自验收；疑难票由用户下令升格为 builder-high。开工实现任何标「实现路径: 执行链」（旧票「外族链」同义）或带完整 spec/验收标准的 ticket 前先经此 skill 判路由；触发词：走执行链、派 builder、实现这张票、升格实现、续修 builder。
+description: 执行链派发器——自包含 ticket（spec＋验收标准完整＋verify.sh 兜底）的实现派 Fable 命名子代理 builder（effort medium），失败按写死的四种条件回落 codex（经 /codex-implement），编排者亲自验收；疑难票由用户下令升格为 builder-high。开工实现任何标「实现路径: 执行链」（旧票「外族链」同义）或带完整 spec/验收标准的 ticket 前先经此 skill 判路由；触发词：走执行链、派 builder、实现这张票、升格实现、续修 builder。
 ---
 
 # implement-ticket — 执行链派发
