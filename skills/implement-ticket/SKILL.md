@@ -28,19 +28,22 @@ description: 执行链派发器——自包含 ticket（spec＋验收标准完�
 
 ## 3. 收结果
 
-- 成功输出应含四段回传（改动清单 / 验证 / Deviations / 遗留）。四段缺失或答非所问 → SendMessage 补要一次；仍不合格 → 按 §4 ④ 回落。
-- builder 报"范围外阻塞 / 冻结项站不住"：先裁决 brief。真需要扩范围或改冻结项 → 修 brief 后重派 builder（任何执行者都不许自行扩范围，换执行者不等于授权扩范围）；brief 无误、阻塞是 builder 误判 → 按 §4 ② 回落。
-- 子代理超时/半途死亡：先 `git status` 审计树上半成品定去留，**有半成品不盲目重派**——重做会与半成品打架；优先 SendMessage 续跑收尾。
+- 成功输出应含四段回传（改动清单 / 验证 / Deviations / 遗留）。四段缺失或答非所问 → SendMessage 补要一次；仍不合格 → 进 §4。
+- builder 的回传（合格与否）只要含"范围外阻塞 / 冻结项站不住"：先裁决 brief。真需要扩范围或改冻结项 → 修 brief 后重派 builder（任何执行者都不许自行扩范围，换执行者不等于授权扩范围）；brief 无误、阻塞是 builder 误判 → 进 §4。
+- 子代理超时/半途死亡：先 `git status` 审计树上半成品定去留，**有半成品不盲目重派**——重做会与半成品打架；优先 SendMessage 续跑收尾；续跑也失败 → 进 §4。
 
-## 4. 回落 codex（只在四种条件下）
+## 4. 回落 codex（通用前置 → 按序判定触发）
 
-写死四种触发，其余情况不回落：
+任何回落都先做三条通用前置，不分触发：
+- (a) 半成品审计：`git status --short` 定每个半成品的去留（保留 / 丢弃 / 交 codex 接着做），结论写进回落 prompt。
+- (b) 范围裁决先于格式与传输失败：builder 的回传只要含范围外阻塞或冻结项异议，先按 §3 裁决 brief；真要扩范围就修 brief 重派 builder，不回落。
+- (c) 该票设计期若走过 codex-review-protocol §7 且 codex 是其中一路，先派 `Agent(model:'opus')` 拿完整问题陈述与 ADR 独立复核 brief 的「结构决策先行」段（不给 codex 原话），有异议先裁决；或建议用户升格 `builder-high` 不回落。
+
+前置做完后按序判定，命中即定，四种互斥，其余情况不回落：
 1. builder 自报停手——同一失败连续两轮修不动，随附诊断（其定义内置的停手判据）。
-2. 范围阻塞经裁决属 builder 误判（brief 无误），带裁决说明回落。
+2. 范围阻塞经 (b) 裁决属 builder 误判（brief 无误），带裁决说明回落。
 3. Claude 配额触顶或限流。
-4. 执行者不可恢复——SendMessage 续跑失败，或四段回传补要一次后仍不合格；先 `git status` 审计半成品定去留，再带半成品状态回落。
-
-回落前置检查：该票设计期若走过 codex-review-protocol §7 且 codex 是其中一路，先派 `Agent(model:'opus')` 拿完整问题陈述与 ADR 独立复核 brief 的「结构决策先行」段（不给 codex 原话），有异议先裁决；或建议用户升格 `builder-high` 不回落。
+4. 执行者不可恢复——SendMessage 续跑失败，或四段回传补要一次后仍不合格，且回传不含范围异议（含则已在 (b) 处理）。
 
 回落动作：调 `/codex-implement`（codex GPT-5.6 high 经 `codex:rescue` 接同一份 brief；把 builder 的诊断与半成品状态一并交给它）。codex 也不可用 → 报告用户并建议升格档，不自行硬扛。每次回落向用户**逐字引用**原因，禁笼统转述。
 
