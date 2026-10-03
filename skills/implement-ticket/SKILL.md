@@ -1,6 +1,6 @@
 ---
 name: implement-ticket
-description: 执行链派发器——自包含 ticket（spec＋验收标准完整＋verify.sh 兜底）的实现派 Opus 命名子代理 builder（effort high，继承 Fable advisor，advisor 验收内环 ≤3 轮），失败按写死的四种条件回落 codex（经 /codex-implement），编排者亲自验收；疑难票由用户下令升格为 builder-high（Fable high）。开工实现任何标「实现路径: 执行链」（旧票「外族链」同义）或带完整 spec/验收标准的 ticket 前先经此 skill 判路由；触发词：走执行链、派 builder、实现这张票、升格实现、续修 builder。
+description: 执行链派发器——自包含 ticket（spec＋验收标准完整＋verify.sh 兜底）的实现派 Opus 命名子代理 builder（effort high，继承 Fable advisor，advisor 验收内环 ≤3 轮），失败按写死的四种条件回落 codex（经 /codex-implement），编排者亲自验收；疑难票由用户下令升格（builder 传 model: 'fable'）。开工实现任何标「实现路径: 执行链」（旧票「外族链」同义）或带完整 spec/验收标准的 ticket 前先经此 skill 判路由；触发词：走执行链、派 builder、实现这张票、升格实现、续修 builder。
 ---
 
 # implement-ticket — 执行链派发
@@ -26,7 +26,7 @@ description: 执行链派发器——自包含 ticket（spec＋验收标准完�
 - 派发后向用户**建议一行** `/goal`（可选，用户自决；Claude 不能替敲）：`/goal 票 <N>：bash verify.sh full 已在本会话跑过且退出码 0，review 边界已处置完`——条件只写 transcript 里会出现的事实（tiering §6）。
 
 - 续修轮：用 SendMessage 找回**同一个** builder 子代理续对话（保留其上下文），不要新开一路重做。
-- **升格档（用户授权的原子切换）**：用户说"升格"后编排者一次做完三步：`/model` 打开选择器选 fable 后按 `s`（仅本会话；直接敲 `/model fable` 会改写默认，勿用）；`/effort xhigh s`（或 `max`）；实现改派 `builder-high`（Fable high），其余步骤不变。编排者只能建议升格、不能决定——建议条件：默认档一票内已回落 codex 一次仍不过，或设计期已判定为返工半径大的架构决策。
+- **升格档（用户授权的原子切换）**：用户说"升格"后编排者一次做完三步：`/model` 打开选择器选 fable 后按 `s`（仅本会话；直接敲 `/model fable` 会改写默认，勿用）；`/effort xhigh s`（或 `max`）；实现仍派 `builder`，Agent 调用传 `model: 'fable'`（覆盖 frontmatter model，effort 沿用 high），其余步骤不变。编排者只能建议升格、不能决定——建议条件：默认档一票内已回落 codex 一次仍不过，或设计期已判定为返工半径大的架构决策。
 
 ## 3. 收结果
 
@@ -48,8 +48,8 @@ description: 执行链派发器——自包含 ticket（spec＋验收标准完�
 3. 有效停手——同一失败连续两轮修不动、四段回传合格且诊断四要素齐（已排除 / 最可能根因 / 建议下一步 / 半成品状态）且不含范围异议——带诊断回落（四段或诊断四要素任一不合格的停手先补要一次，仍不合格归 4）。
 4. 其余不可恢复——SendMessage 续跑失败，或四段回传 / 停手诊断缺失、答非所问、要素不全经一次补要后仍不合格——带失败证据回落。
 
-回落 prompt 的必附证据按类定：(a) 审计结论每类都附；范围裁决结果有则附；1 附误判裁决，2 附配额/限流证据，3 附四要素诊断，4 分两种：续跑/传输失败附原始 SendMessage 错误与最后一条可用回传（没有则写"无回传"），补要后仍不合格附补要请求与最终无效回传原样。回落动作：调 `/codex-implement`（codex GPT-5.6 high 经 `codex:rescue` 接同一份 brief）。codex 也不可用 → 报告用户并建议升格档，不自行硬扛。每次回落向用户**逐字引用**原因，禁笼统转述。
+回落 prompt 的必附证据按类定：(a) 审计结论每类都附；范围裁决结果有则附；1 附误判裁决，2 附配额/限流证据，3 附四要素诊断，4 分两种：续跑/传输失败附原始 SendMessage 错误与最后一条可用回传（没有则写"无回传"），补要后仍不合格附补要请求与最终无效回传原样。回落动作：调 `/codex-implement`（codex high 经 `codex:rescue` 接同一份 brief）。codex 也不可用 → 报告用户并建议升格档，不自行硬扛。每次回落向用户**逐字引用**原因，禁笼统转述。
 
 ## 5. 验收（不外包——本 skill 的完成判据）
 
-无论谁实现：builder 的 advisor 验收只作线索，你亲跑 `bash verify.sh full`，再按异族矩阵走 review（`codex-review-protocol.md` §8）：builder / builder-high 实现 → codex review；回落由 codex 实现 → 内置 `/code-review`。执行者自报"完成"只作线索。**verify full 通过＋review 边界处置完，这张 ticket 才算完成。**
+无论谁实现：builder 的 advisor 验收只作线索，你亲跑 `bash verify.sh full`，再按异族矩阵走 review（`codex-review-protocol.md` §8）：builder（含升格档）实现 → codex review；回落由 codex 实现 → 内置 `/code-review`。执行者自报"完成"只作线索。**verify full 通过＋review 边界处置完，这张 ticket 才算完成。**

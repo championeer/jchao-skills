@@ -1,6 +1,6 @@
 ---
 name: codex-implement
-description: codex 单路派发器——把已写好的 brief 交 codex GPT-5.6（high）经 codex:rescue 实现，是 /implement-ticket 执行链的兜底分支（范围异议经裁决属 builder 误判 / Claude 配额触顶 / builder 有效停手 / 执行者不可恢复四类，回落前已做半成品审计与范围裁决）；用户点名"派 codex"也可直接用。不做切面判定与 brief 写作（那在 /implement-ticket）。触发词：派 codex、codex 实现、续修 codex、回落 codex。
+description: codex 单路派发器——把已写好的 brief 交 codex（high）经 codex:rescue 实现，是 /implement-ticket 执行链的兜底分支（范围异议经裁决属 builder 误判 / Claude 配额触顶 / builder 有效停手 / 执行者不可恢复四类，回落前已做半成品审计与范围裁决）；用户点名"派 codex"也可直接用。不做切面判定与 brief 写作（那在 /implement-ticket）。触发词：派 codex、codex 实现、续修 codex、回落 codex。
 ---
 
 # codex-implement — codex 单路派发
@@ -21,7 +21,7 @@ description: codex 单路派发器——把已写好的 brief 交 codex GPT-5.6�
 
 ## 3. codex 不可用或失败
 
-链上已无更低一级：向用户**逐字引用**原因（禁笼统转述成"codex 不可用"），并建议升格档（编排者 `/effort xhigh s`，实现派 `builder-high`），由用户下令；不自行硬扛。
+链上已无更低一级：向用户**逐字引用**原因（禁笼统转述成"codex 不可用"），并建议升格档（三步见 `/implement-ticket` §2「升格档」），由用户下令；不自行硬扛。
 
 ## 4. 验收（不外包）
 
